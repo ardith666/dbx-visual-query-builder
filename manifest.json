@@ -3,7 +3,7 @@
   "manifest_version": 1,
   "id": "com.ardith.dbx-visual-query-builder",
   "name": "DBX Visual Query Builder",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "publisher": "ardith",
   "description": "Build read-only SELECT queries visually, with a draggable relationship diagram and live SQL preview.",
   "icon": "assets/plugin.svg",

@@ -327,3 +327,58 @@ test("an alias resolves the duplicate name", () => {
   };
   assert.match(generate(model, "mysql"), /FROM `t`\nLEFT JOIN `t` AS `t2`/);
 });
+
+// --- HAVING is a closed surface -----------------------------------------------
+// A raw-expression passthrough would be the only place in this generator where
+// user text reaches SQL unescaped, so it is refused rather than sanitised.
+
+test("HAVING refuses a free-form expression", () => {
+  const model = {
+    tables: [users],
+    having: [{ expression: "1=1) UNION SELECT password FROM users --", operator: "=", value: 1 }],
+  };
+  assert.throws(() => generate(model, "postgres"), /free-form expression/);
+});
+
+test("HAVING refuses a raw expression even alongside a valid column", () => {
+  const model = {
+    tables: [users],
+    having: [{ tableId: "u", column: "id", expression: "evil()", operator: ">", value: 1 }],
+  };
+  assert.throws(() => generate(model, "postgres"), /free-form expression/);
+});
+
+test("HAVING with an aggregate still works", () => {
+  const model = {
+    tables: [users],
+    groupBy: [{ tableId: "u", column: "status" }],
+    having: [{ tableId: "u", column: "id", aggregate: "COUNT", operator: ">", value: 3 }],
+  };
+  assert.match(generate(model, "postgres"), /HAVING COUNT\("users"\."id"\) > 3;/);
+});
+
+test("HAVING with a bare column still works", () => {
+  const model = {
+    tables: [users],
+    groupBy: [{ tableId: "u", column: "status" }],
+    having: [{ tableId: "u", column: "status", operator: "<>", value: "archived" }],
+  };
+  assert.match(generate(model, "postgres"), /HAVING "users"\."status" <> 'archived';/);
+});
+
+test("HAVING refuses an unknown operator", () => {
+  const model = {
+    tables: [users],
+    having: [{ tableId: "u", column: "id", operator: "DROP", value: 1 }],
+  };
+  assert.throws(() => generate(model, "postgres"), /unknown operator: DROP/);
+});
+
+test("HAVING still escapes its value like everywhere else", () => {
+  const model = {
+    tables: [users],
+    groupBy: [{ tableId: "u", column: "status" }],
+    having: [{ tableId: "u", column: "status", operator: "=", value: "x\\' OR 1=1 --" }],
+  };
+  assert.match(generate(model, "mysql"), /HAVING `users`\.`status` = 'x\\\\'' OR 1=1 --';/);
+});

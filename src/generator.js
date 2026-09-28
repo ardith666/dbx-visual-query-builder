@@ -88,18 +88,24 @@ function renderValue(dbType, value) {
   return literalString(dbType, value);
 }
 
+// HAVING may only name an aggregate or a real column. There is deliberately no
+// free-form expression path: every other value in this generator goes through
+// the dialect serializer, and a raw string here would be the one place a user
+// could paste SQL that never gets escaped.
 function renderHaving(dbType, index, having) {
   if (!having.operator) fail("HAVING needs an operator");
+  if (!OPERATORS.includes(having.operator)) fail(`unknown operator: ${having.operator}`);
+
   if (having.aggregate) {
     if (!AGGREGATES.includes(having.aggregate)) fail(`unknown aggregate: ${having.aggregate}`);
-    const ref = having.column === "*" ? "*" : refOf(dbType, index, having.tableId, having.column, "HAVING");
     if (having.column === "*" && having.aggregate !== "COUNT") {
       fail(`${having.aggregate}(*) is not valid SQL; name a column`);
     }
+    const ref = having.column === "*" ? "*" : refOf(dbType, index, having.tableId, having.column, "HAVING");
     return `${having.aggregate}(${ref}) ${having.operator} ${renderValue(dbType, having.value)}`;
   }
   if (having.expression) {
-    return `${having.expression} ${having.operator} ${renderValue(dbType, having.value)}`;
+    fail("HAVING cannot take a free-form expression; name a column or an aggregate");
   }
   const ref = refOf(dbType, index, having.tableId, having.column, "HAVING");
   return `${ref} ${having.operator} ${renderValue(dbType, having.value)}`;

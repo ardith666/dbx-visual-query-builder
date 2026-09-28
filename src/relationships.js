@@ -29,35 +29,18 @@ export function missingJoins(model, foreignKeys) {
     .filter((j) => j && !present.has(j.key));
 }
 
-// Cardinality labels for a relationship edge.
+// Cardinality for a foreign-key edge.
 //
-// A foreign key is N:1 from the child (referencing) side to the parent
-// (referenced) side -- many children per parent. The diagram draws the parent
-// on the right, so it is labelled 1 and the child N.
-//
-// A junction table turns that into M:M: when a table's only foreign keys all
-// point outward and nothing points at it, it bridges the tables it references.
-export function edgeLabels(foreignKeys) {
-  const referenced = new Set(foreignKeys.map((fk) => fk.refTable));
-  const references = new Map();
-  for (const fk of foreignKeys) {
-    if (!references.has(fk.table)) references.set(fk.table, []);
-    references.get(fk.table).push(fk.refTable);
-  }
-  const isJunction = (name) => {
-    const out = references.get(name) ?? [];
-    return out.length > 1 && !referenced.has(name);
-  };
-  const junctionOf = (name) => (isJunction(name) ? references.get(name) : []);
+// A foreign key is always many-children-per-parent, so the child side is N and
+// the parent side is 1. That is the truth of the constraint, and it is all we
+// can claim: a junction table is not detectable here, because telling one apart
+// from an ordinary fact table needs primary-key metadata the plugin does not
+// receive. Many-to-many is a relation *between two parents through* a junction,
+// which is a different relationship from the edge drawn here.
+export const FK_CARDINALITY = { parent: "1", child: "N" };
 
-  return (fk) => {
-    // child -> parent
-    if (isJunction(fk.refTable) || isJunction(fk.table)) {
-      return { parent: "M", child: "N" };
-    }
-    void junctionOf;
-    return { parent: "1", child: "N" };
-  };
+export function edgeLabels(_foreignKeys) {
+  return () => FK_CARDINALITY;
 }
 
 export function tableName(model, id) {

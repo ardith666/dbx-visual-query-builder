@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { joinForForeignKey, missingJoins, activeRelations, tableName, tidyLayout } from "../src/relationships.js";
+import { joinForForeignKey, missingJoins, activeRelations, tableName, tidyLayout, edgeLabels, FK_CARDINALITY } from "../src/relationships.js";
 
 const fks = [
   { table: "produk_jenis_produk", column: "jenis_produk_id", refTable: "jenis_produk", refColumn: "id" },
@@ -135,35 +135,36 @@ test("tidy of one table is centred", () => {
 });
 
 // --- cardinality ---------------------------------------------------------------
-import { edgeLabels } from "../src/relationships.js";
 
-const fkSimple = [
-  { table: "orders", column: "user_id", refTable: "users", refColumn: "id" },
-];
-
-test("a plain foreign key is N:1 (parent labelled 1, child N)", () => {
-  const label = edgeLabels(fkSimple);
-  assert.deepEqual(label(fkSimple[0]), { parent: "1", child: "N" });
+test("every foreign-key edge is 1 on the parent and N on the child", () => {
+  const label = edgeLabels([]);
+  assert.deepEqual(label({}), { parent: "1", child: "N" });
 });
 
-test("a junction table reads as M:N", () => {
-  // order_items references both orders and products, and nothing references
-  // it -- that is the textbook junction.
+test("a table with two foreign keys is NOT treated as a junction", () => {
+  // Regression: an earlier heuristic called any table with 2 outgoing FKs and no
+  // incoming ones a junction, so a plain fact table rendered as M:N. Telling a
+  // junction apart from a fact table needs primary keys, which we never get.
+  const fks = [
+    { table: "orders", column: "user_id", refTable: "users", refColumn: "id" },
+    { table: "orders", column: "tenant_id", refTable: "tenants", refColumn: "id" },
+  ];
+  const label = edgeLabels(fks);
+  for (const fk of fks) {
+    assert.deepEqual(label(fk), { parent: "1", child: "N" }, fk.table);
+  }
+});
+
+test("a real junction table still renders as 1:N on its own edges", () => {
   const fks = [
     { table: "order_items", column: "order_id", refTable: "orders", refColumn: "id" },
     { table: "order_items", column: "product_id", refTable: "products", refColumn: "id" },
   ];
   const label = edgeLabels(fks);
-  assert.deepEqual(label(fks[0]), { parent: "M", child: "N" });
+  assert.deepEqual(label(fks[0]), { parent: "1", child: "N" });
+  assert.deepEqual(label(fks[1]), { parent: "1", child: "N" });
 });
 
-test("a table that others reference is never treated as a junction", () => {
-  // users is referenced by orders, so it is not a bridge even with two outgoing FKs.
-  const fks = [
-    { table: "users", column: "org_id", refTable: "orgs", refColumn: "id" },
-    { table: "users", column: "team_id", refTable: "teams", refColumn: "id" },
-    { table: "orders", column: "user_id", refTable: "users", refColumn: "id" },
-  ];
-  const label = edgeLabels(fks);
-  assert.deepEqual(label(fks[0]), { parent: "1", child: "N" });
+test("FK_CARDINALITY is exported for the diagram to reuse", () => {
+  assert.deepEqual(FK_CARDINALITY, { parent: "1", child: "N" });
 });

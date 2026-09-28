@@ -144,8 +144,8 @@
         {@const card = labels(e.fk)}
         <g class="edge" class:lit>
           <path d="M {from.x} {from.y} C {from.x + mid} {from.y}, {to.x - mid} {to.y}, {to.x} {to.y}" />
-          <text class="card" x={from.x + (to.x >= from.x ? 9 : -22)} y={from.y - 7}>{card.parent}</text>
-          <text class="card" x={to.x - 7} y={to.y - 7}>{card.child}</text>
+          <text class="mark" x={from.x + (to.x >= from.x ? 9 : -22)} y={from.y - 7}>{card.parent}</text>
+          <text class="mark" x={to.x - 7} y={to.y - 7}>{card.child}</text>
         </g>
       {/each}
     </svg>
@@ -216,12 +216,12 @@
   .edges { position: absolute; inset: 0; pointer-events: none; }
   .edge { fill: none; stroke: GrayText; stroke-width: 1.5; }
   .edge text { fill: GrayText; font: 700 10px ui-monospace, monospace; stroke: none; }
-  .edge text.card {
+  .edge text.mark {
     fill: Canvas; stroke: GrayText; stroke-width: 3; paint-order: stroke;
   }
   .edge.lit { stroke: LinkText; }
   .edge.lit text { fill: LinkText; }
-  .edge.lit text.card { fill: Canvas; stroke: LinkText; }
+  .edge.lit text.mark { fill: Canvas; stroke: LinkText; }
 
   .card {
     position: absolute;
