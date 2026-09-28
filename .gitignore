@@ -1,7 +1,11 @@
 /dist/
 /.dbx-dev/
-/ui/
 node_modules/
+.dbx-repository-signing-key.env
 .DS_Store
 *.log
-*.dbxp
+
+# Note: ui/ is deliberately NOT ignored. The DBX release workflow runs
+# `dbx-plugin package .` directly without a build step first, so a fresh
+# checkout must already contain ui/index.html or packaging fails with
+# "manifest UI entry 'ui/index.html' does not exist".
