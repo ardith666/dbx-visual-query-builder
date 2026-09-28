@@ -1,0 +1,7 @@
+/dist/
+/.dbx-dev/
+/ui/
+node_modules/
+.DS_Store
+*.log
+*.dbxp

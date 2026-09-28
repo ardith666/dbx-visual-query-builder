@@ -1,0 +1,58 @@
+{
+  "$schema": "https://raw.githubusercontent.com/t8y2/dbx/plugin-sdk-v1/plugins/manifest.schema.json",
+  "manifest_version": 1,
+  "id": "com.ardith.dbx-visual-query-builder",
+  "name": "DBX Visual Query Builder",
+  "version": "0.16.0",
+  "publisher": "ardith",
+  "description": "Build read-only SELECT queries visually, with a draggable relationship diagram and live SQL preview.",
+  "icon": "assets/plugin.svg",
+  "source": "https://github.com/ardith666/dbx-visual-query-builder",
+  "homepage": "https://github.com/ardith666/dbx-visual-query-builder",
+  "engines": { "dbx": ">=0.6.26", "host_api": "^1.4" },
+  "permissions": [
+    "host.schema:read",
+    "host.data:read",
+    "host.storage"
+  ],
+  "entrypoints": { "ui": { "root": "ui", "entry": "ui/index.html" } },
+  "contributions": [
+    {
+      "type": "workbench",
+      "id": "com.ardith.dbx-visual-query-builder.workbench",
+      "label": "Visual Query Builder",
+      "description": "Build read-only SELECT queries visually.",
+      "icon": "assets/plugin.svg"
+    },
+    {
+      "type": "context-menu",
+      "id": "com.ardith.dbx-visual-query-builder.from-table",
+      "label": "Visual Query Builder",
+      "menu": "table",
+      "action": {
+        "type": "open-workbench",
+        "workbench": "com.ardith.dbx-visual-query-builder.workbench"
+      }
+    },
+    {
+      "type": "context-menu",
+      "id": "com.ardith.dbx-visual-query-builder.from-connection",
+      "label": "Visual Query Builder",
+      "menu": "connection",
+      "action": {
+        "type": "open-workbench",
+        "workbench": "com.ardith.dbx-visual-query-builder.workbench"
+      }
+    }
+  ],
+  "localizations": {
+    "en": {
+      "name": "Visual Query Builder",
+      "description": "Build read-only SELECT queries visually, with a draggable relationship diagram and live SQL preview."
+    },
+    "id": {
+      "name": "Visual Query Builder",
+      "description": "Bangun query SELECT read-only secara visual, dengan diagram relasi yang bisa digeser dan pratinjau SQL langsung."
+    }
+  }
+}

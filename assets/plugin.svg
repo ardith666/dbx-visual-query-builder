@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="DBX Visual Query Builder">
+  <title>DBX Visual Query Builder</title>
+  <rect width="64" height="64" rx="12" fill="#ffffff"/>
+  <g fill="none" stroke="#1e293b" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="26" cy="18" rx="13" ry="5.2"/>
+    <path d="M13 18v20c0 2.9 5.8 5.2 13 5.2s13-2.3 13-5.2V18"/>
+    <path d="M13 28c0 2.9 5.8 5.2 13 5.2s13-2.3 13-5.2"/>
+  </g>
+  <g transform="translate(45 45)">
+    <path d="M10.85 -1.81 L10.85 1.81 L7.76 3.21 L7.76 3.21 L8.95 6.40 L6.40 8.95 L3.21 7.76 L3.21 7.76 L1.81 10.85 L-1.81 10.85 L-3.21 7.76 L-3.21 7.76 L-6.40 8.95 L-8.95 6.40 L-7.76 3.21 L-7.76 3.21 L-10.85 1.81 L-10.85 -1.81 L-7.76 -3.21 L-7.76 -3.21 L-8.95 -6.40 L-6.40 -8.95 L-3.21 -7.76 L-3.21 -7.76 L-1.81 -10.85 L1.81 -10.85 L3.21 -7.76 L3.21 -7.76 L6.40 -8.95 L8.95 -6.40 L7.76 -3.21 L7.76 -3.21 Z" fill="#1e293b"/>
+    <circle cx="0" cy="0" r="3.2" fill="#ffffff"/>
+  </g>
+</svg>
