@@ -8,6 +8,17 @@
 // bitten us: queryData reports `dbType`, and a table context-menu invocation
 // carries no `dbType` at all.
 
+// A realistic connection exposes dozens of schemas, which is the whole reason
+// the database picker needs a search box.
+const DATABASES = [
+  "praktikum-basis-data",
+  "information_schema",
+  "mysql",
+  "performance_schema",
+  "sys",
+  ...Array.from({ length: 57 }, (_, i) => `warehouse_db_${String(i + 1).padStart(2, "0")}`),
+];
+
 const TABLES = [
   { name: "produk_jenis_produk", columns: [
     { name: "id", dataType: "int", nullable: false },
@@ -81,7 +92,13 @@ export function installMockBridge() {
     async queryData({ sql }) {
       bridge.queries.push(sql);
       if (/information_schema\.schemata/.test(sql)) {
-        return { dbType: "mysql", columns: [{ name: "schema_name" }], rows: [["praktikum-basis-data"]], truncated: false, elapsedMs: 3 };
+        return {
+          dbType: "mysql",
+          columns: [{ name: "schema_name" }],
+          rows: DATABASES.map((d) => [d]),
+          truncated: false,
+          elapsedMs: 3,
+        };
       }
       if (/information_schema\.tables/.test(sql)) {
         return {
@@ -123,4 +140,4 @@ export function installMockBridge() {
   return bridge;
 }
 
-export const MOCK = { TABLES, FK, COLUMNS, ROWS };
+export const MOCK = { DATABASES, TABLES, FK, COLUMNS, ROWS };

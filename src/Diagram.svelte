@@ -90,6 +90,18 @@
 
   // Dragging via mouse events on window. Pointer capture inside a nested
   // WKWebView was unreliable; window-level mouse events are not.
+  // Midpoint of the cubic at t=0.5, so the cardinality badge sits ON the line
+  // instead of floating at the card ends where it reads as a column header.
+  function edgeMidpoint(a, b) {
+    const dx = Math.max(40, Math.abs(b.x - a.x) / 2);
+    const p1 = { x: a.x + dx, y: a.y };
+    const p2 = { x: b.x - dx, y: b.y };
+    return {
+      x: (a.x + 3 * p1.x + 3 * p2.x + b.x) / 8,
+      y: (a.y + 3 * p1.y + 3 * p2.y + b.y) / 8,
+    };
+  }
+
   let drag = $state(null);
   function startDrag(event, table) {
     if (event.target.closest("button, input, label")) return;
@@ -142,10 +154,15 @@
         {@const lit = hot.has(`${e.fk.table}->${e.fk.refTable}`)}
         {@const mid = (to.x - from.x) / 2}
         {@const card = labels(e.fk)}
+        {@const centre = edgeMidpoint(from, to)}
         <g class="edge" class:lit>
           <path d="M {from.x} {from.y} C {from.x + mid} {from.y}, {to.x - mid} {to.y}, {to.x} {to.y}" />
-          <text class="mark" x={from.x + (to.x >= from.x ? 9 : -22)} y={from.y - 7}>{card.parent}</text>
-          <text class="mark" x={to.x - 7} y={to.y - 7}>{card.child}</text>
+          <!-- Cardinality rides on the line itself, as one badge at the curve's
+               midpoint, rather than two loose glyphs at the card ends. -->
+          <g class="badge" transform="translate({centre.x}, {centre.y})">
+            <rect x="-15" y="-8" width="30" height="16" rx="8" />
+            <text y="4">{card.parent}:{card.child}</text>
+          </g>
         </g>
       {/each}
     </svg>
@@ -215,13 +232,14 @@
   .stage { position: absolute; top: 0; left: 0; width: 3200px; height: 2400px; transform-origin: 0 0; }
   .edges { position: absolute; inset: 0; pointer-events: none; }
   .edge { fill: none; stroke: GrayText; stroke-width: 1.5; }
-  .edge text { fill: GrayText; font: 700 10px ui-monospace, monospace; stroke: none; }
-  .edge text.mark {
-    fill: Canvas; stroke: GrayText; stroke-width: 3; paint-order: stroke;
-  }
   .edge.lit { stroke: LinkText; }
-  .edge.lit text { fill: LinkText; }
-  .edge.lit text.mark { fill: Canvas; stroke: LinkText; }
+  .edge .badge rect { fill: Canvas; stroke: GrayText; stroke-width: 1; }
+  .edge .badge text {
+    fill: GrayText; font: 700 9px ui-monospace, monospace;
+    stroke: none; text-anchor: middle;
+  }
+  .edge.lit .badge rect { fill: LinkText; stroke: LinkText; }
+  .edge.lit .badge text { fill: Canvas; }
 
   .card {
     position: absolute;

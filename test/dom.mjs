@@ -148,6 +148,57 @@ async function main() {
     const firstCards = await ev(`document.querySelectorAll('.stage .card').length`);
     check("the table from the workbench context is already on the canvas", firstCards === 1, `cards=${firstCards}`);
 
+
+    // --- searchable database picker ------------------------------------------
+    await ev(`document.querySelector('.picker .trigger')?.click()`);
+    await sleep(400);
+    check("the database picker opens", (await ev(`!!document.querySelector('.picker .panel')`)) === true);
+    check("it opens with a search box focused", (await ev(`document.activeElement?.classList.contains('needle')`)) === true);
+    const allOpts = await ev(`document.querySelectorAll('.picker [role=option]').length`);
+    check("every database is listed", allOpts === 62, `options=${allOpts}`);
+
+    await type('.picker .needle', 'praktikum');
+    await sleep(300);
+    const filteredOpts = await ev(`[...document.querySelectorAll('.picker [role=option]')].map(o=>o.textContent.replace(/\u2713/,'').trim())`);
+    check("search narrows 62 databases to one", Array.isArray(filteredOpts) && filteredOpts.length === 1 && /praktikum-basis-data/.test(filteredOpts[0]), JSON.stringify(filteredOpts));
+    const tally = await ev(`document.querySelector('.picker .tally')?.textContent`);
+    check("the tally reports the narrowing", / of /.test(String(tally)), String(tally));
+
+    await type('.picker .needle', 'zzzznope');
+    await sleep(300);
+    check("an empty match says so", /No database matches/.test(String(await ev(`document.querySelector('.picker .none')?.textContent`))), String(await ev(`document.querySelector('.picker .none')?.textContent`)));
+
+    await type('.picker .needle', 'praktikum');
+    await sleep(300);
+    await ev(`[...document.querySelectorAll('.picker [role=option]')].find(o=>/praktikum/.test(o.textContent))?.click()`);
+    await sleep(1200);
+    check("picking a database closes the picker", (await ev(`!!document.querySelector('.picker .panel')`)) === false);
+    check("the trigger shows the chosen database", /praktikum-basis-data/.test(String(await ev(`document.querySelector('.picker .current')?.textContent`))), String(await ev(`document.querySelector('.picker .current')?.textContent`)));
+    await sleep(1500); // picking reloads the schema list; wait for it to settle
+
+    // Escape closes without choosing.
+    await ev(`document.querySelector('.picker .trigger')?.click()`);
+    await sleep(300);
+    await ev(`document.querySelector('.picker .needle')?.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+    await sleep(300);
+    check("Escape closes the picker", (await ev(`!!document.querySelector('.picker .panel')`)) === false);
+
+
+    // keyboard only: arrow down moves the active option, Enter chooses it
+    await ev(`document.querySelector('.picker .trigger')?.focus()`);
+    await ev(`document.querySelector('.picker .trigger')?.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}))`);
+    await sleep(350);
+    check("ArrowDown opens the picker from the keyboard", (await ev(`!!document.querySelector('.picker .panel')`)) === true);
+    const firstActive = await ev(`document.querySelector('.picker li.active')?.textContent?.replace(/\u2713/,'').trim()`);
+    await ev(`document.querySelector('.picker .needle')?.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}))`);
+    await sleep(250);
+    const secondActive = await ev(`document.querySelector('.picker li.active')?.textContent?.replace(/\u2713/,'').trim()`);
+    check("arrow keys move the active option", !!secondActive && secondActive !== firstActive, `${firstActive} -> ${secondActive}`);
+    await ev(`document.querySelector('.picker .needle')?.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))`);
+    await sleep(1500);
+    const chosen = await ev(`document.querySelector('.picker .current')?.textContent`);
+    check("Enter chooses exactly the active option", chosen === secondActive, `active=${secondActive} trigger=${chosen}`);
+
     // --- add a related table -> FK edge + auto-join ---------------------------
     await ev(`(()=>{const b=[...document.querySelectorAll('aside li button')].find(x=>x.textContent.trim()==='jenis_produk');b?.click();return !!b;})()`);
     await sleep(800);
@@ -157,8 +208,10 @@ async function main() {
     const edges = await ev(`document.querySelectorAll('.edge').length`);
     check("a foreign-key edge is drawn", edges === 1, `edges=${edges}`);
 
-    const labels = await ev(`[...document.querySelectorAll('.edge text.mark')].map(t=>t.textContent.trim()).join(',')`);
-    check("the edge is labelled 1 and N", labels === "1,N", `labels="${labels}"`);
+    const labels = await ev(`[...document.querySelectorAll('.edge .badge text')].map(t=>t.textContent.trim()).join(',')`);
+    check("the edge carries a 1:N badge", labels === '1:N', `labels="${labels}"`);
+    const badgeOnLine = await ev(`(()=>{const b=document.querySelector('.edge .badge');const p=document.querySelector('.edge path');if(!b||!p)return 'missing';const bb=b.getBoundingClientRect();const pb=p.getBoundingClientRect();const bx=bb.x+bb.width/2, by=bb.y+bb.height/2;return (bx>=pb.x&&bx<=pb.x+pb.width&&by>=pb.y&&by<=pb.y+pb.height)?'on the line':'off the line ('+Math.round(bx)+','+Math.round(by)+' vs '+Math.round(pb.x)+','+Math.round(pb.y)+' '+Math.round(pb.width)+'x'+Math.round(pb.height)+')';})()`);
+    check("the badge sits on the line itself", badgeOnLine === 'on the line', String(badgeOnLine));
 
     const autojoin = await ev(`document.querySelector('.autojoin')?.textContent?.trim()`);
     check("auto-join is announced", /produk_jenis_produk/.test(String(autojoin)), String(autojoin));

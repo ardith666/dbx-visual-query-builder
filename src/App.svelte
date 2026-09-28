@@ -3,6 +3,7 @@
   import { listDatabases, listTables, listColumns, listForeignKeys } from "./metadata.js";
   import { missingJoins } from "./relationships.js";
   import Diagram from "./Diagram.svelte";
+  import DatabasePicker from "./DatabasePicker.svelte";
   import { paging, clampLimit, ALL_ROWS } from "./paging.js";
   import { toCsv, toXlsx, toPdf, diagramHtml, tableHtml } from "./export.js";
   import { resultHeaders } from "./headers.js";
@@ -539,14 +540,12 @@
       <span class="conn">{dbName || "no database"}{ctxDatabase ? " · from sidebar" : ""}</span>
     </div>
     <div class="actions">
-      <select
+      <DatabasePicker
+        databases={databases}
         value={dbName}
-        onchange={(e) => loadDatabase(e.currentTarget.value)}
+        onpick={(name) => loadDatabase(name)}
         disabled={busy || databases.length === 0}
-        aria-label="Database"
-      >
-        {#each databases as d (d)}<option value={d} selected={d === dbName}>{d}</option>{/each}
-      </select>
+      />
       <button type="button" onclick={copySql} disabled={!plugin?.capabilities?.clipboardWrite}>Copy SQL</button>
       <button type="button" class="run" onclick={run} disabled={!canRun}>
         {running ? "Running…" : "Run SELECT"}
