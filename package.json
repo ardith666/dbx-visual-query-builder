@@ -6,7 +6,9 @@
     "build": "vite build",
     "build:watch": "vite build --watch",
     "test": "node --test test/dialect.test.js test/generator.test.js test/relationships.test.js test/metadata-host.test.js test/paging.test.js test/export.test.js test/headers.test.js",
-    "test:dom": "node test/dom.mjs"
+    "test:dom": "node test/dom.mjs",
+    "test:sqlite": "node test/sqlite.mjs",
+    "test:all": "npm test && npm run test:dom && npm run test:sqlite"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^6.2.1",

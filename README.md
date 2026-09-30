@@ -24,12 +24,13 @@ build.
 
 | Database | Status |
 |---|---|
-| PostgreSQL | tested |
-| MySQL / MariaDB | tested |
-| SQLite | generator tested, not yet run against a live SQLite connection |
+| PostgreSQL | tested against a live server |
+| MySQL / MariaDB | tested against a live server (8.0.45) |
+| SQLite | tested against a live database file (3.54) |
 
 Other databases fail closed with an "unsupported dialect" message rather than
-emitting SQL the server may reject.
+emitting SQL the server may reject. `RIGHT` and `FULL OUTER JOIN` need SQLite
+3.39+; earlier versions have neither.
 
 ## Requirements
 
@@ -46,7 +47,9 @@ From the DBX Store, or build it yourself:
 
 ```bash
 npm install
-npm test
+npm test          # 120 unit tests
+npm run test:dom  # 49 assertions in a real browser
+npm run test:sqlite # 18 scenarios against a real SQLite file
 npm run build
 dbx-plugin package . --target universal
 ```
@@ -92,7 +95,9 @@ through DBX's own save dialog, so the plugin never downloads anything itself.
 
 ```bash
 npm install
-npm test        # 113 unit tests
+npm test          # 120 unit tests
+npm run test:dom  # 49 assertions in a real browser
+npm run test:sqlite # 18 scenarios against a real SQLite file
 npm run build
 ```
 
@@ -108,12 +113,14 @@ and `getTableMetadata` are unavailable there. Test against the desktop app.
 ## Known limitations
 
 - Column filters are substring matches, not typed comparisons.
-- `RIGHT` and `FULL OUTER JOIN` are generated but have not been run against a
-  live database; MySQL and SQLite differ in support.
-- A `HAVING` clause typed as a raw expression is passed through unchecked.
+- A `HAVING` clause may only name a real column or an aggregate; there is no
+  free-form expression input, so complex predicates must go in `WHERE`.
 - PDF export uses the base-14 Helvetica font without embedding, so characters
   outside Latin-1 are replaced with `?` and you are told how many.
-- The diagram is a relationship view, not a general ERD designer.
+- The diagram is a relationship view, not a general ERD designer. It draws
+  foreign keys as `1:N`; a many-to-many relation between two tables through a
+  junction table is not rendered as such, because telling a junction from a fact
+  table needs primary-key metadata the plugin does not receive.
 
 ## License
 
