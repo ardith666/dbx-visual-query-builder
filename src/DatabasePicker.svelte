@@ -1,8 +1,9 @@
 <script>
-  // A searchable database picker. A native <select> cannot be filtered, and
-  // this connection exposes 60+ databases, so the list needs a needle and full
-  // keyboard control.
-  let { databases = [], value = "", onpick, disabled = false } = $props();
+  // A searchable picker for a flat namespace (databases or, on PostgreSQL,
+  // schemas). A native <select> cannot be filtered, and a connection can expose
+  // dozens of entries, so the list needs a needle and full keyboard control.
+  let { databases = [], value = "", onpick, disabled = false, noun = "database" } = $props();
+  const plural = $derived(`${noun}s`);
 
   let open = $state(false);
   let needle = $state("");
@@ -85,7 +86,7 @@
     aria-controls={id}
     onclick={toggle}
   >
-    <span class="current" class:empty={!value}>{value || "select a database"}</span>
+    <span class="current" class:empty={!value}>{value || `select a ${noun}`}</span>
     <span class="caret" aria-hidden="true">▾</span>
   </button>
 
@@ -96,13 +97,13 @@
         bind:value={needle}
         type="search"
         class="needle"
-        placeholder="Search databases…"
-        aria-label="Search databases"
+        placeholder={`Search ${plural}…`}
+        aria-label={`Search ${plural}`}
         aria-controls={id}
         autocomplete="off"
         spellcheck="false"
       />
-      <ul id={id} role="listbox" aria-label="Databases">
+      <ul id={id} role="listbox" aria-label={plural}>
         {#each matches as name, i (name)}
           <li
             role="option"
@@ -117,13 +118,13 @@
             {#if name === value}<span class="tick" aria-hidden="true">✓</span>{/if}
           </li>
         {:else}
-          <li class="none" role="option" aria-selected="false" aria-disabled="true">No database matches “{needle}”</li>
+          <li class="none" role="option" aria-selected="false" aria-disabled="true">No {noun} matches “{needle}”</li>
         {/each}
       </ul>
       <p class="tally">
         {matches.length === databases.length
-          ? `${databases.length} databases`
-          : `${matches.length} of ${databases.length}`}
+          ? `${databases.length} ${plural}`
+          : `${matches.length} of ${databases.length} ${plural}`}
       </p>
     </div>
   {/if}

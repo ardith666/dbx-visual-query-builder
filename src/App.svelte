@@ -1,6 +1,6 @@
 <script>
   import { generate } from "./generator.js";
-  import { listDatabases, listTables, listColumns, listForeignKeys } from "./metadata.js";
+  import { listDatabases, listSchemas, listTables, listColumns, listForeignKeys } from "./metadata.js";
   import { missingJoins } from "./relationships.js";
   import Diagram from "./Diagram.svelte";
   import DatabasePicker from "./DatabasePicker.svelte";
@@ -19,9 +19,15 @@
   let dbType = $state(null);
   let dbName = $state("");
   let ctxDatabase = $state("");
+  let ctxSchema = $state("");
   let ctxTable = $state(null);
 
   let databases = $state([]);
+  // PostgreSQL has a schema level below the database. MySQL treats the two as
+  // the same thing and SQLite has a single "main" database, so the schema
+  // picker only appears where it is a real, separate level.
+  let schemas = $state([]);
+  let schemaName = $state("");
   let tables = $state([]);
   let foreignKeys = $state([]);
   // LIMIT starts at 100: enough to see whether the query is right, small enough
@@ -103,7 +109,9 @@
   // Joins implied by real foreign keys that are not in the model yet.
   const pendingJoins = $derived(model.tables.length > 1 ? missingJoins(model, foreignKeys) : []);
 
-  const canRun = $derived(hasData && dbName && dbType && !sql.startsWith("--") && !running);
+  const canRun = $derived(
+    hasData && dbName && dbType && (dbType !== "postgres" || !!schemaName) && !sql.startsWith("--") && !running,
+  );
 
   function setPageSize(size) {
     pageSize = Number(size);
@@ -283,10 +291,11 @@
     connectionId = ctx.connectionId ?? ctx.id ?? null;
     dbType = ctx.dbType ?? null;
     ctxDatabase = ctx.database || "";
+    ctxSchema = ctx.schema || "";
     ctxTable = ctx.table || null;
     dbName = ctx.database || "";
-    // A table context carries no dbType; listDatabases() learns it from the
-    // first queryData response and writes it back onto the bridge object.
+    // A table context carries no dbType; listDatabases() probes with SELECT 1
+    // and writes the dialect back onto the bridge object.
     plugin.dialect = dbType;
 
     if (!connectionId) {
@@ -305,38 +314,98 @@
 
     try {
       databases = await listDatabases(plugin, connectionId);
+      // A restricted pg_database (or a context database the user can still
+      // query) must not disappear from the picker just because it was not
+      // listed. Keep the context value selectable.
+      if (ctxDatabase && !databases.includes(ctxDatabase)) databases = [ctxDatabase, ...databases];
       status = { ...status, dbs: databases.length };
     } catch (error) {
-      status = { ...status, error: `listDatabases: ${error.message}` };
-      banner = { kind: "error", text: `Cannot list databases: ${error.message}` };
-      return;
+      // A host that refuses database enumeration must not block a table
+      // context, which already names the one database that matters.
+      if (!ctxDatabase) {
+        status = { ...status, error: `listDatabases: ${error.message}` };
+        banner = { kind: "error", text: `Cannot list databases: ${error.message}` };
+        return;
+      }
+      databases = [ctxDatabase];
+      status = { ...status, dbs: 1, error: `listDatabases: ${error.message}` };
+      banner = { kind: "warn", text: `Cannot list databases: ${error.message}. Keeping ${ctxDatabase}.` };
     }
+
+    // listDatabases probes with SELECT 1 when the context had no dbType, so the
+    // dialect is known before any schema-specific query runs.
+    dbType = plugin.dialect ?? dbType;
 
     if (!dbName) {
       // No database in context: the user opened us from a connection, so they
-      // must pick one. Skipping the system schemas gets them a useful default.
-      dbName = databases.find((d) => !/^(information_schema|mysql|performance_schema|sys)$/i.test(d)) ?? "";
+      // must pick one. Skipping the system databases gets them a useful default.
+      dbName = databases.find((d) => !/^(information_schema|mysql|performance_schema|sys|postgres|template0|template1)$/i.test(d)) ?? databases[0] ?? "";
     }
     if (!dbName) {
       banner = { kind: "error", text: "This connection exposes no usable database. Right-click a table instead." };
       return;
     }
     await loadDatabase(dbName);
-    // listDatabases may have learned the dialect from the response.
-    dbType = plugin.dialect ?? dbType;
 
     // Opening from a table means the user already named one: add it for them.
     if (ctxTable) await addTable(ctxTable);
   }
 
-  async function loadDatabase(name) {
+  // A schema is a real level below the database only on PostgreSQL. Pick the
+  // context schema when the host supplied one, otherwise prefer `public`.
+  function chooseSchema(list, preferred, keepCurrent) {
+    if (preferred && list.includes(preferred)) return preferred;
+    if (keepCurrent && schemaName && list.includes(schemaName)) return schemaName;
+    return list.find((s) => s === "public") ?? list[0] ?? "";
+  }
+
+  // Switching database/schema makes every table in the model belong to the old
+  // scope. Keeping them would silently run the query against the wrong
+  // database, so the builder starts clean rather than lying about its SQL.
+  function resetQuery() {
+    model = { tables: [], select: [], joins: [], filters: [], groupBy: [], orderBy: [], limit: DEFAULT_LIMIT };
+    pos = {};
+    autoJoined = [];
+    result = null;
+    colWidths = {};
+    detailRow = null;
+    page = 1;
+  }
+
+  async function loadTables() {
+    tables = await listTables(plugin, connectionId, dbName, schemaName);
+    foreignKeys = await listForeignKeys(plugin, connectionId, dbName, schemaName);
+  }
+
+  async function loadDatabase(name, preferredSchema = "") {
     if (!name) return;
+    const previous = dbName;
+    const changed = previous !== "" && previous !== name;
     dbName = name;
+    if (changed) resetQuery();
     busy = true;
     result = null;
+    tables = [];
+    foreignKeys = [];
     try {
-      tables = await listTables(plugin, connectionId, name);
-      foreignKeys = await listForeignKeys(plugin, connectionId, name);
+      if (dbType === "postgres") {
+        try {
+          schemas = await listSchemas(plugin, connectionId, name);
+        } catch (error) {
+          // The invocation's schema is still a valid identity even when the
+          // host will not enumerate every schema.
+          if (name !== ctxDatabase || !ctxSchema) throw error;
+          schemas = [ctxSchema];
+        }
+        // The invocation's schema belongs to the invocation's database; after a
+        // deliberate database switch, fall back to that database's default.
+        const preferred = preferredSchema || (name === ctxDatabase ? ctxSchema : "");
+        schemaName = chooseSchema(schemas, preferred, !changed);
+      } else {
+        schemas = [];
+        schemaName = "";
+      }
+      await loadTables();
       status = { ...status, tables: tables.length, fks: foreignKeys.length, error: null };
     } catch (error) {
       status = { ...status, error: `loadDatabase(${name}): ${error.message}` };
@@ -346,16 +415,35 @@
     }
   }
 
-  async function addTable(name) {
+  async function loadSchema(name) {
+    if (!name || name === schemaName) return;
+    schemaName = name;
+    resetQuery();
+    busy = true;
+    result = null;
+    tables = [];
+    foreignKeys = [];
+    try {
+      await loadTables();
+      status = { ...status, tables: tables.length, fks: foreignKeys.length, error: null };
+    } catch (error) {
+      status = { ...status, error: `loadSchema(${name}): ${error.message}` };
+      banner = { kind: "error", text: error.message };
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function addTable(name, schema = schemaName) {
     if (model.tables.some((t) => t.name === name)) return;
     busy = true;
     let columns = [];
     try {
-      columns = await listColumns(plugin, connectionId, dbName, name);
+      columns = await listColumns(plugin, connectionId, dbName, name, schema);
     } catch (error) {
       banner = { kind: "warn", text: `Columns for ${name} unavailable: ${error.message}` };
     }
-    model.tables = [...model.tables, { id: `t${model.tables.length + 1}`, name, columns }];
+    model.tables = [...model.tables, { id: `t${model.tables.length + 1}`, name, schema, columns }];
     autoJoin();
     busy = false;
   }
@@ -390,6 +478,10 @@
       result = await plugin.queryData({
         connectionId,
         database: dbName,
+        // The schema selects the search_path the unqualified table names in the
+        // generated SQL resolve against. Without it a query built from a
+        // non-public schema fails even though its table list was correct.
+        ...(schemaName ? { schema: schemaName } : {}),
         sql: runnableSql,
         maxRows: HOST_MAX_ROWS,
       });
@@ -445,7 +537,7 @@
 
   async function exportPdf() {
     if (!result) return;
-    const { bytes, lost, pages } = toPdf(result.columns, filteredRows, { title: `VQB result - ${dbName}` });
+    const { bytes, lost, pages } = toPdf(result.columns, filteredRows, { title: `VQB result - ${dbName}${schemaName ? `.${schemaName}` : ""}` });
     // Base-14 Helvetica with no embedded font is WinAnsi only. Say so rather
     // than handing back a file full of "?" and calling it a success.
     if (lost > 0) {
@@ -473,7 +565,7 @@
       labels: resultLabels,
       rows: filteredRows,
       sql: sql.replace(/;\s*$/, ""),
-      title: `VQB result - ${dbName}`,
+      title: `VQB result - ${dbName}${schemaName ? `.${schemaName}` : ""}`,
     });
     await writeFile(`vqb-result-${safeStamp()}.html`, "text/html", enc.encode(html));
   }
@@ -493,7 +585,7 @@
       tables: model.tables,
       pos,
       edges,
-      title: `DBX Visual Query Builder - ${dbName}`,
+      title: `DBX Visual Query Builder - ${dbName}${schemaName ? `.${schemaName}` : ""}`,
     });
     await writeFile(`vqb-diagram-${safeStamp()}.html`, "text/html", enc.encode(html));
   }
@@ -537,7 +629,7 @@
       </svg>
       <span class="brand">Visual Query Builder</span>
       <span class="by">ardith666</span>
-      <span class="conn">{dbName || "no database"}{ctxDatabase ? " · from sidebar" : ""}</span>
+      <span class="conn">{dbName || "no database"}{schemaName ? `.${schemaName}` : ""}{ctxDatabase ? " · from sidebar" : ""}</span>
     </div>
     <div class="actions">
       <DatabasePicker
@@ -545,7 +637,17 @@
         value={dbName}
         onpick={(name) => loadDatabase(name)}
         disabled={busy || databases.length === 0}
+        noun="database"
       />
+      {#if dbType === "postgres"}
+        <DatabasePicker
+          databases={schemas}
+          value={schemaName}
+          onpick={(name) => loadSchema(name)}
+          disabled={busy || schemas.length <= 1}
+          noun="schema"
+        />
+      {/if}
       <button type="button" onclick={copySql} disabled={!plugin?.capabilities?.clipboardWrite}>Copy SQL</button>
       <button type="button" class="run" onclick={run} disabled={!canRun}>
         {running ? "Running…" : "Run SELECT"}
@@ -561,6 +663,7 @@
     <span>{status.opened ?? "…"}</span>
     <span>conn {status.connection ? "ok" : "no"}</span>
     <span>db {status.dbs}</span>
+    {#if dbType === "postgres"}<span>schema {schemaName || "—"}</span>{/if}
     <span>tables {status.tables}</span>
     <span>fk {status.fks}</span>
     {#if status.error}<span class="err">{status.error}</span>{/if}
@@ -573,7 +676,7 @@
     <ul>
       {#each tables.filter((t) => !search || t.name.toLowerCase().includes(search.toLowerCase())) as t (t.name)}
         <li>
-          <button type="button" onclick={() => addTable(t.name)} disabled={busy || model.tables.some((m) => m.name === t.name)}>
+          <button type="button" onclick={() => addTable(t.name, t.schema)} disabled={busy || model.tables.some((m) => m.name === t.name)}>
             {t.name}
           </button>
         </li>
